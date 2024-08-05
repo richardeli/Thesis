@@ -175,7 +175,7 @@ def test_book():
     fig.add_trace(pltly.Scatter(x=x, y=y_trend, mode='lines', name='Trend', line=dict(color='red'), hovertext=y_agent_type), row=2, col=1)
     fig.update_layout(height=600, width=800, title_text="Market Price and Trend vs. Time", showlegend=False)
     fig.update_xaxes(title_text='Time', row=2, col=1) 
-    fig.show()
+    # fig.show()
 
 if __name__ == '__main__':
     test_book()
