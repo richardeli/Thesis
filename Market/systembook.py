@@ -7,18 +7,20 @@ import plotly.graph_objects as pltly
 from plotly.subplots import make_subplots
 
 class SystemBook():
-    def __init__(self, num_init_agents=25, initial_market_correction_dir=1, num_trade_cycles=50, chg_num_agent_pcycle=20, fundamentalist_dilution=1):
+    def __init__(self, num_init_agents=25, init_upward_market_dir=True, num_trade_cycles=75, chg_num_agent_pcycle=20, fund_dilute_rm=True, change_dilution_dir_cycle_num=None):
         self.agent_dict = {}
         self.moderator = Moderator()
         self.LOB = OrderBook()
-        self.num_one_type_init_agent = num_init_agents 
+        self.num_one_type_init_agent = num_init_agents
         self.num_trade_cycles = num_trade_cycles
         self.chg_num_agent_pcycle = chg_num_agent_pcycle
-        self.initial_market_correction_dir = initial_market_correction_dir
-        self.fundamentalist_dilution = fundamentalist_dilution
+        self.init_upward_market_dir = init_upward_market_dir
+        self.fund_dilute_rm = fund_dilute_rm
         self.ids = 1
         self.init_agent_LOB_environment()
         self.init_market_direction()
+
+        self.change_dilution_dir_cycle_num = change_dilution_dir_cycle_num
 
         #Graphing Stuff
         self.order_num = 0
@@ -53,10 +55,13 @@ class SystemBook():
         return
 
     def trade_cycle(self):
+        dilution_reversal = False
         for k in range(0, self.num_trade_cycles):
-            if k >= 1:
-                self.fund_agent_dilution()
-            print(f"Cycle {k}: {len(self.agent_dict)} agents")
+            if k == self.change_dilution_dir_cycle_num: #Change direction of dilution (reversal) 
+                dilution_reversal = True
+
+            if k >= 1: #Let first trade cycle occur with no agent dilution
+                self.fund_agent_dilution(dilution_reversal) 
                          
             for agentID, agent_info in self.agent_dict.items():
                 if agentID == 0:
@@ -79,19 +84,18 @@ class SystemBook():
                     if(type(order) == dict):
                         self.LOB.processOrder(order, False, False)
 
-                    speculator_proportion = self.get_speculator_proportion()
+                    speculator_proportion = round(self.get_speculator_proportion(),2)
                     agent_type = agent_info['type']
 
-                    self.store_market_price_information(self.order_num, market_price, self.LOB.get_trend(), speculator_proportion, agent_type)
+                    self.store_market_price_information(self.order_num, market_price, self.LOB.get_trend(), speculator_proportion, agent_type, k)
                     self.order_num += 1 
             self.settle_system_trades()
         self.output_market_price_graph()
-        # print(len(self.agent_dict))
         return
 
     def init_market_direction(self):
         '''DOWNWARDS PRESSURE'''
-        if(self.initial_market_correction_dir == 0):
+        if(self.init_upward_market_dir == False):
             for i in range(1,200):
                 if(i in range(1,120)):
                     order = {'type': 'limit',
@@ -114,7 +118,7 @@ class SystemBook():
                     pass
 
         '''UPWARDS PRESSURE'''
-        if(self.initial_market_correction_dir == 1):
+        if(self.init_upward_market_dir == True):
             for i in range(1,200):
                 if(i in range(1,80)):
                     order = {'type': 'limit',
@@ -136,36 +140,33 @@ class SystemBook():
                     self.moderator.add_share(order['qty'])
                 else:
                     pass
-        else:
-            print("No valid direction given")
         return
     
     def get_speculator_proportion(self):
         #Fundamentalists being removed
-        if self.fundamentalist_dilution == 0:
-            speculator_proportion = round((self.num_one_type_init_agent / (len(self.agent_dict)-1)),4) * 100
+        if self.fund_dilute_rm == True:
+            speculator_proportion = (self.num_one_type_init_agent / (len(self.agent_dict)-1)) * 100
 
         #Speculators being added
-        if self.fundamentalist_dilution == 1:
-            speculator_proportion = round(1-(self.num_one_type_init_agent / (len(self.agent_dict)-1)),4) * 100
-            # print('WWWW')
-            # print(str(self.num_one_type_init_agent) + "|" + str(len(self.agent_dict)-1))
-            # print('WWWW')
-
-        else:
-            return
+        if self.fund_dilute_rm == False:
+            speculator_proportion = 1-(self.num_one_type_init_agent / (len(self.agent_dict)-1)) * 100
         return speculator_proportion
 
-    def fund_agent_dilution(self):
+    def fund_agent_dilution(self, dilution_reversal):
         #Remove Fundamentalist Agents
-        if self.fundamentalist_dilution == 0:
+        if self.fund_dilute_rm == True and dilution_reversal == False:
             self.remove_fundamentalists()
+        #Add Fundamentalist Agents
+        if self.fund_dilute_rm == True and dilution_reversal == True:
+            self.add_fundamentalists()
         
         #Add Speculator Agents
-        if self.fundamentalist_dilution == 1:
+        if self.fund_dilute_rm == False and dilution_reversal == False:
             self.add_speculators()
-        else:
-            pass
+        
+        #Remove Speculator Agents
+        if self.fund_dilute_rm == False and dilution_reversal == True:
+            self.remove_speculators()
         return
     
     def add_speculators(self):
@@ -179,6 +180,25 @@ class SystemBook():
             }
         return
     
+    def count_speculators(self):
+        count = 0
+        for agentID, agent_info in self.agent_dict.items():
+            agent_type = agent_info['type']
+            if agent_type == "Speculator":
+                count += 1
+        return count
+    
+    def add_fundamentalists(self):
+        for i in range(self.chg_num_agent_pcycle):
+            fund_agent = Fundamentalist(self.ids, 100000)
+            self.ids += 1
+            fund_agent.set_shares(1)
+            self.agent_dict[fund_agent.get_agentID()] = {
+                "agent_object": fund_agent,
+                "type": "Fundamentalist"
+            }
+        return
+    
     def remove_fundamentalists(self):
         max_fund_agents = self.chg_num_agent_pcycle
         keys_to_remove = []
@@ -186,6 +206,17 @@ class SystemBook():
             if agent_info["type"] == "Fundamentalist" and max_fund_agents > 0:
                 keys_to_remove.append(agentID)
                 max_fund_agents -= 1
+        for agentID in keys_to_remove:
+            self.agent_dict.pop(agentID)
+        return
+
+    def remove_speculators(self):
+        max_spec_agents = self.chg_num_agent_pcycle
+        keys_to_remove = []
+        for agentID, agent_info in self.agent_dict.items():
+            if agent_info["type"] == "Speculator" and max_spec_agents > 0:
+                keys_to_remove.append(agentID)
+                max_spec_agents -= 1
         for agentID in keys_to_remove:
             self.agent_dict.pop(agentID)
         return
@@ -233,11 +264,11 @@ class SystemBook():
             else:
                 pass
 
-    def store_market_price_information(self, order_num, y_market_price, y_trend, speculator_proportion, y_agent_type):
+    def store_market_price_information(self, order_num, y_market_price, y_trend, speculator_proportion, y_agent_type, trade_cycle):
         self.x.append(order_num)
         self.y_market_price.append(y_market_price)
         self.y_trend.append(y_trend)
-        self.y_agent_type.append([y_agent_type, str(speculator_proportion) + "%"])
+        self.y_agent_type.append([y_agent_type, str(speculator_proportion) + "%", "Cycle: " + str(trade_cycle)])
         return
     
     def output_market_price_graph(self):
