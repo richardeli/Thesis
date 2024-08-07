@@ -7,7 +7,7 @@ import plotly.graph_objects as pltly
 from plotly.subplots import make_subplots
 
 class SystemBook():
-    def __init__(self, num_init_agents=25, initial_market_correction_dir=1, num_trade_cycles=50, chg_num_agent_pcycle=20, fundamentalist_dilution=0):
+    def __init__(self, num_init_agents=25, initial_market_correction_dir=1, num_trade_cycles=50, chg_num_agent_pcycle=20, fundamentalist_dilution=1):
         self.agent_dict = {}
         self.moderator = Moderator()
         self.LOB = OrderBook()
@@ -53,10 +53,11 @@ class SystemBook():
         return
 
     def trade_cycle(self):
-        for k in range(self.num_trade_cycles):
-            if k > 1:
+        for k in range(0, self.num_trade_cycles):
+            if k >= 1:
                 self.fund_agent_dilution()
-                                    
+            print(f"Cycle {k}: {len(self.agent_dict)} agents")
+                         
             for agentID, agent_info in self.agent_dict.items():
                 if agentID == 0:
                     continue #Skip AgentID 0 (Moderator)
@@ -83,49 +84,9 @@ class SystemBook():
 
                     self.store_market_price_information(self.order_num, market_price, self.LOB.get_trend(), speculator_proportion, agent_type)
                     self.order_num += 1 
-        
-            trades = self.LOB.get_trades()
-            for i in range(len(trades)):
-                settle = trades[i]
-                price = settle['price']
-                shares = settle['qty']
-
-                if(settle['party1'][1] == 'bid'):
-                    party1_agentID = settle['party1'][0]
-                    party2_agentID = settle['party2'][0]
-                
-                    bidding_agent = self.agent_dict.get(party1_agentID, {}).get("agent_object")
-                    asking_agent = self.agent_dict.get(party2_agentID, {}).get("agent_object")
-
-                    if(bidding_agent == None):
-                        bidding_agent = self.moderator
-                    bidding_agent.settle_trade(price, shares)
-                    '''
-                    If the asking agent that was removed submitted the bid change to moderator
-                    '''
-                    if(asking_agent == None):
-                        asking_agent = self.moderator
-                    asking_agent.settle_trade(price, -shares)
-
-                elif(settle['party1'][1] == 'ask'):
-                    party1_agentID = settle['party1'][0]
-                    party2_agentID = settle['party2'][0]
-
-                    asking_agent = self.agent_dict.get(party1_agentID, {}).get("agent_object")
-                    bidding_agent = self.agent_dict.get(party2_agentID, {}).get("agent_object")
-
-                    if(asking_agent == None):
-                        asking_agent = self.moderator
-                    asking_agent.settle_trade(price, -shares)
-                    '''
-                    If the asking agent that was removed submitted the bid change to moderator
-                    '''
-                    if(bidding_agent == None):
-                        bidding_agent = self.moderator
-                    bidding_agent.settle_trade(price, shares)
-                else:
-                    pass
+            self.settle_system_trades()
         self.output_market_price_graph()
+        # print(len(self.agent_dict))
         return
 
     def init_market_direction(self):
@@ -187,6 +148,10 @@ class SystemBook():
         #Speculators being added
         if self.fundamentalist_dilution == 1:
             speculator_proportion = round(1-(self.num_one_type_init_agent / (len(self.agent_dict)-1)),4) * 100
+            # print('WWWW')
+            # print(str(self.num_one_type_init_agent) + "|" + str(len(self.agent_dict)-1))
+            # print('WWWW')
+
         else:
             return
         return speculator_proportion
@@ -224,6 +189,49 @@ class SystemBook():
         for agentID in keys_to_remove:
             self.agent_dict.pop(agentID)
         return
+
+    def settle_system_trades(self):
+        trades = self.LOB.get_trades()
+        for i in range(len(trades)):
+            settle = trades[i]
+            price = settle['price']
+            shares = settle['qty']
+
+            if(settle['party1'][1] == 'bid'):
+                party1_agentID = settle['party1'][0]
+                party2_agentID = settle['party2'][0]
+            
+                bidding_agent = self.agent_dict.get(party1_agentID, {}).get("agent_object")
+                asking_agent = self.agent_dict.get(party2_agentID, {}).get("agent_object")
+
+                if(bidding_agent == None):
+                    bidding_agent = self.moderator
+                bidding_agent.settle_trade(price, shares)
+                '''
+                If the asking agent that was removed submitted the bid change to moderator
+                '''
+                if(asking_agent == None):
+                    asking_agent = self.moderator
+                asking_agent.settle_trade(price, -shares)
+
+            elif(settle['party1'][1] == 'ask'):
+                party1_agentID = settle['party1'][0]
+                party2_agentID = settle['party2'][0]
+
+                asking_agent = self.agent_dict.get(party1_agentID, {}).get("agent_object")
+                bidding_agent = self.agent_dict.get(party2_agentID, {}).get("agent_object")
+
+                if(asking_agent == None):
+                    asking_agent = self.moderator
+                asking_agent.settle_trade(price, -shares)
+                '''
+                If the asking agent that was removed submitted the bid change to moderator
+                '''
+                if(bidding_agent == None):
+                    bidding_agent = self.moderator
+                bidding_agent.settle_trade(price, shares)
+            else:
+                pass
 
     def store_market_price_information(self, order_num, y_market_price, y_trend, speculator_proportion, y_agent_type):
         self.x.append(order_num)
