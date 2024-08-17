@@ -4,14 +4,16 @@ from Agents.moderator import Moderator
 from Book.orderBook import OrderBook
 from Book.orderBook import OrderTree
 import plotly.graph_objects as pltly
+import random
 from plotly.subplots import make_subplots
 
 class SystemBook():
-    def __init__(self, num_init_agents=25, init_upward_market_dir=True, num_trade_cycles=75, chg_num_agent_pcycle=20, fund_dilute_rm=True, change_dilution_dir_cycle_num=None):
+    def __init__(self, num_init_fundamentalists=25, num_init_speculators=25, init_upward_market_dir=True, num_trade_cycles=75, chg_num_agent_pcycle=20, fund_dilute_rm=True, change_dilution_dir_cycle_num=None):
         self.agent_dict = {}
         self.moderator = Moderator()
         self.LOB = OrderBook()
-        self.num_one_type_init_agent = num_init_agents
+        self.num_init_fundamentalists = num_init_fundamentalists
+        self.num_init_speculators = num_init_speculators
         self.num_trade_cycles = num_trade_cycles
         self.chg_num_agent_pcycle = chg_num_agent_pcycle
         self.init_upward_market_dir = init_upward_market_dir
@@ -24,40 +26,52 @@ class SystemBook():
 
         #Graphing Stuff
         self.order_num = 0
-        self.x = []
-        self.y_market_price = []
-        self.y_trend = []
-        self.y_agent_type = []
-
+        self.x_order_num = []
+        self.y_market_price_per_trade = []
+        self.trade_hovertext = []
+    
+        self.x_cycle = []
+        self.y_market_price_per_cycle = []
+        self.cycle_hovertext = []
 
     def init_agent_LOB_environment(self):
         self.agent_dict[self.moderator.get_agentID()] = {
                 "agent_object": self.moderator,
                 "type": "Moderator"
         }
-
-        for i in range(self.num_one_type_init_agent):
+        
+        #Add all fundamentalists
+        for i in range(self.num_init_fundamentalists):
             fund_agent = Fundamentalist(self.ids, 100000)
-            spec_agent = Speculator(self.ids + 1, 100000)
-            self.ids += 2
+            self.ids += 1
             fund_agent.set_shares(1)
-            spec_agent.set_shares(1)
             self.agent_dict[fund_agent.get_agentID()] = {
                 "agent_object": fund_agent,
                 "type": "Fundamentalist"
             }
 
-            # Add Speculator agent to the dictionary
+        #Add all speculators 
+        for i in range(self.num_init_speculators):
+            spec_agent = Speculator(self.ids, 100000)
+            self.ids += 1
+            spec_agent.set_shares(1)
             self.agent_dict[spec_agent.get_agentID()] = {
                 "agent_object": spec_agent,
                 "type": "Speculator"
             }
+            
+        keys = list(self.agent_dict.keys())
+        random.shuffle(keys)
+        shuffled_agent_dict = {key: self.agent_dict[key] for key in keys}
+        self.agent_dict = shuffled_agent_dict
+
+
         return
 
     def trade_cycle(self):
         dilution_reversal = False
         for k in range(0, self.num_trade_cycles):
-            if k == self.change_dilution_dir_cycle_num: #Change direction of dilution (reversal) 
+            if k == self.change_dilution_dir_cycle_num: #Change direction of dilution (reversal)
                 dilution_reversal = True
 
             if k >= 1: #Let first trade cycle occur with no agent dilution
@@ -84,11 +98,11 @@ class SystemBook():
                     if(type(order) == dict):
                         self.LOB.processOrder(order, False, False)
 
-                    speculator_proportion = round(self.get_speculator_proportion(),2)
-                    agent_type = agent_info['type']
+                    speculator_proportion = self.get_speculator_proportion()
 
-                    self.store_market_price_information(self.order_num, market_price, self.LOB.get_trend(), speculator_proportion, agent_type, k)
-                    self.order_num += 1 
+                    self.store_market_price_information(self.order_num, market_price, speculator_proportion, k)
+                    self.order_num += 1
+            self.store_market_price_per_cycle((self.LOB.get_market_price() / 1000), k, self.get_speculator_proportion())
             self.settle_system_trades()
         self.output_market_price_graph()
         return
@@ -140,17 +154,32 @@ class SystemBook():
                     self.moderator.add_share(order['qty'])
                 else:
                     pass
+        for i in range(1,100):
+            price_ceiling = {'type': 'limit',
+                            'side': 'ask',
+                            'qty': 100000,
+                            'price': 200,
+                            'agentID': 0,
+                            'tid': 0}
+            price_floor = {'type': 'limit',
+                            'side': 'bid',
+                            'qty': 100000,
+                            'price': 1,
+                            'agentID': 0,
+                            'tid': 0}
+            self.LOB.processOrder(price_ceiling,False,False)
+            self.LOB.processOrder(price_floor,False,False)
+            self.moderator.add_share(price_ceiling['qty'])
+            self.moderator.add_share(price_floor['qty'])
         return
     
     def get_speculator_proportion(self):
-        #Fundamentalists being removed
-        if self.fund_dilute_rm == True:
-            speculator_proportion = (self.num_one_type_init_agent / (len(self.agent_dict)-1)) * 100
-
-        #Speculators being added
-        if self.fund_dilute_rm == False:
-            speculator_proportion = 1-(self.num_one_type_init_agent / (len(self.agent_dict)-1)) * 100
-        return speculator_proportion
+        total_agents = len(self.agent_dict) - 1
+        if total_agents <= 0:
+            return 0 
+        num_speculators = self.count_speculators()
+        speculator_proportion = (num_speculators / total_agents) * 100
+        return round(speculator_proportion,4)
 
     def fund_agent_dilution(self, dilution_reversal):
         #Remove Fundamentalist Agents
@@ -264,18 +293,40 @@ class SystemBook():
             else:
                 pass
 
-    def store_market_price_information(self, order_num, y_market_price, y_trend, speculator_proportion, y_agent_type, trade_cycle):
-        self.x.append(order_num)
-        self.y_market_price.append(y_market_price)
-        self.y_trend.append(y_trend)
-        self.y_agent_type.append([y_agent_type, str(speculator_proportion) + "%", "Cycle: " + str(trade_cycle)])
+    def store_market_price_information(self, order_num, y_market_price, speculator_proportion, trade_cycle):
+        self.x_order_num.append(order_num)
+        self.y_market_price_per_trade.append(y_market_price)
+        self.trade_hovertext.append([str(speculator_proportion) + "%", "Cycle: " + str(trade_cycle)])
         return
     
+    def store_market_price_per_cycle(self, y_market_price, trade_cycle, speculator_proportion):
+        self.y_market_price_per_cycle.append(y_market_price)
+        self.x_cycle.append(str(trade_cycle))
+        self.cycle_hovertext.append([str(speculator_proportion) + "%", "Cycle: " + str(trade_cycle)])
+    
     def output_market_price_graph(self):
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=('Market Price', 'Trend'))
-        fig.add_trace(pltly.Scatter(x=self.x, y=self.y_market_price, mode='lines', name='Market Price', line=dict(color='blue'), hovertext=self.y_agent_type), row=1, col=1)
-        fig.add_trace(pltly.Scatter(x=self.x, y=self.y_trend, mode='lines', name='Trend', line=dict(color='red'), hovertext=self.y_agent_type), row=2, col=1)
-        fig.update_layout(height=600, width=800, title_text="Market Price and Trend vs. Time", showlegend=False)
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle'))
+        fig.add_trace(pltly.Scatter(x=self.x_order_num, y=self.y_market_price_per_trade, mode='lines', name='Market Price', line=dict(color='blue'), hovertext=self.trade_hovertext), row=1, col=1)
+        fig.add_trace(pltly.Scatter(x=self.x_cycle, y=self.y_market_price_per_cycle, mode='lines', name='Cycle', line=dict(color='red'), hovertext=self.cycle_hovertext), row=2, col=1)
+        # annotations = [
+        # dict(
+        #     x=0.5,  # x position as a fraction of the x-axis range
+        #     y=1.05,  # y position as a fraction of the y-axis range
+        #     xref='paper',  # x-axis reference (paper for relative positioning)
+        #     yref='paper',  # y-axis reference (paper for relative positioning)
+        #     text='Initalised Speculators',
+        #     showarrow=False,  # No arrow for this annotation
+        #     font=dict(
+        #         family="Arial, sans-serif",
+        #         size=14,
+        #         color="black"
+        #     ),
+        #     align="center")
+        # ]
+        # fig.update_layout(annotations, height=600, width=800, title_text="Market Price Over Time", showlegend=False)
+        fig.update_layout(height=600, width=800, title_text="Market Price Over Time", showlegend=False)
         fig.update_xaxes(title_text='Time', row=2, col=1) 
         fig.show()
         return
+
+
