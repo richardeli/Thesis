@@ -75,9 +75,9 @@ class SystemBook():
             if k == self.change_dilution_dir_cycle_num: #Change direction of dilution (reversal)
                 dilution_reversal = True
 
-            if ((k > 1) and (k % self.cycle_cool_off_per_dilution) == 0): #Let first trade cycle occur with no agent dilution
+            if ((k >= 1) and (k % self.cycle_cool_off_per_dilution) == 0): #Let first trade cycle occur with no agent dilution
                 self.fund_agent_dilution(dilution_reversal)
-                                         
+
             for agentID, agent_info in self.agent_dict.items():
                 if agentID == 0:
                     continue #Skip AgentID 0 (Moderator)
@@ -98,9 +98,7 @@ class SystemBook():
                     order = agent.trade(self.LOB.get_trend(), market_price, time)
                     if(type(order) == dict):
                         self.LOB.processOrder(order, False, False)
-
                     speculator_proportion = self.get_speculator_proportion()
-
                     self.store_market_price_information(self.order_num, market_price, speculator_proportion, k)
                     self.order_num += 1
             self.store_market_price_per_cycle((self.LOB.get_market_price() / 1000), k, self.get_speculator_proportion())
@@ -304,14 +302,42 @@ class SystemBook():
         self.y_market_price_per_cycle.append(y_market_price)
         self.x_cycle.append(str(trade_cycle))
         self.cycle_hovertext.append([str(speculator_proportion) + "%", "Cycle: " + str(trade_cycle)])
-    
+
     def output_market_price_graph(self):
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle'))
-        fig.add_trace(pltly.Scatter(x=self.x_order_num, y=self.y_market_price_per_trade, mode='lines', name='Market Price', line=dict(color='blue'), hovertext=self.trade_hovertext), row=1, col=1)
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle'), vertical_spacing=0.1)
+        fig.add_trace(pltly.Scatter(x=self.x_order_num, y=self.y_market_price_per_trade, mode='lines', name='Trade', line=dict(color='blue'), hovertext=self.trade_hovertext), row=1, col=1)
         fig.add_trace(pltly.Scatter(x=self.x_cycle, y=self.y_market_price_per_cycle, mode='lines', name='Cycle', line=dict(color='red'), hovertext=self.cycle_hovertext), row=2, col=1)
-        fig.update_layout(height=600, width=800, title_text="Market Price Over Time", showlegend=False)
+        fig.update_layout(
+            height=700,
+            width=800,
+            title_text="Market Price Over Time",
+            showlegend=True,
+        )
+        fig.add_annotation(
+            text="Initialised Fundamentalists: {}<br>Initialised Speculators: {}<br>Number Of Agents Changed Per Cycle: {}<br>Number Of Cycles For Cooling Off Period Between Each Change: {}".format(
+                self.num_init_fundamentalists, 
+                self.num_init_speculators, 
+                self.chg_num_agent_pcycle, 
+                self.cycle_cool_off_per_dilution),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=-0.16,  # Positioning it below the plot
+            showarrow=False,
+            font=dict(
+                family="Arial, sans-serif",
+                size=12,
+                color="black"
+            ),
+            align="center",
+            bgcolor="white",  # Background color for better readability
+            bordercolor="black",
+            borderwidth=1
+        )
         fig.update_xaxes(title_text='Time', row=2, col=1) 
         fig.show()
+
         return
+
 
 
