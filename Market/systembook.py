@@ -26,14 +26,22 @@ class SystemBook():
         self.change_dilution_dir_cycle_num = change_dilution_dir_cycle_num
 
         #Graphing Stuff
+        #Market Price Per Trade
         self.order_num = 0
         self.x_order_num = []
         self.y_market_price_per_trade = []
         self.trade_hovertext = []
-    
+
+        #Market Price Per Cycle
         self.x_cycle = []
         self.y_market_price_per_cycle = []
         self.cycle_hovertext = []
+
+        #Speculative Content vs Excess Demand Per Trade
+        self.speculator_proportion_per_trade = []
+        self.excess_demand_per_trade = []
+        self.spec_ex_demand_hovertext = []
+        self.market_price_change_per_trade = []
 
     def init_agent_LOB_environment(self):
         self.agent_dict[self.moderator.get_agentID()] = {
@@ -99,11 +107,16 @@ class SystemBook():
                     if(type(order) == dict):
                         self.LOB.processOrder(order, False, False)
                     speculator_proportion = self.get_speculator_proportion()
-                    self.store_market_price_information(self.order_num, market_price, speculator_proportion, k)
+                    excess_demand = self.get_excess_demand()
+                    market_price_change = self.calculate_market_price_post_trade(market_price, self.LOB.get_market_price() / 1000)
+
+                    self.store_market_price_per_trade(self.order_num, market_price, speculator_proportion, k)
+                    self.store_spec_content_vs_ex_demand_per_trade(speculator_proportion, excess_demand, market_price_change)
                     self.order_num += 1
             self.store_market_price_per_cycle((self.LOB.get_market_price() / 1000), k, self.get_speculator_proportion())
             self.settle_system_trades()
-        self.output_market_price_graph()
+        # self.output_market_price_graph()
+        self.output_spec_content_vs_ex_demand_graph_on_bottom()
         return
 
     def init_market_direction(self):
@@ -216,6 +229,12 @@ class SystemBook():
                 count += 1
         return count
     
+    def get_excess_demand(self):
+        demand = self.LOB.get_num_bids()
+        supply = self.LOB.get_num_asks()
+        excess_demand = demand - supply
+        return excess_demand
+
     def add_fundamentalists(self):
         for i in range(self.chg_num_agent_pcycle):
             fund_agent = Fundamentalist(self.ids, 100000)
@@ -291,8 +310,12 @@ class SystemBook():
                 bidding_agent.settle_trade(price, shares)
             else:
                 pass
+    
+    def calculate_market_price_post_trade(self, pre_trade_price, post_trade_price):
+        calc = abs(pre_trade_price - post_trade_price)
+        return calc
 
-    def store_market_price_information(self, order_num, y_market_price, speculator_proportion, trade_cycle):
+    def store_market_price_per_trade(self, order_num, y_market_price, speculator_proportion, trade_cycle):
         self.x_order_num.append(order_num)
         self.y_market_price_per_trade.append(y_market_price)
         self.trade_hovertext.append([str(speculator_proportion) + "%", "Cycle: " + str(trade_cycle)])
@@ -302,6 +325,13 @@ class SystemBook():
         self.y_market_price_per_cycle.append(y_market_price)
         self.x_cycle.append(str(trade_cycle))
         self.cycle_hovertext.append([str(speculator_proportion) + "%", "Cycle: " + str(trade_cycle)])
+
+    def store_spec_content_vs_ex_demand_per_trade(self, speculator_proportion, excess_demand, price_change):
+        self.speculator_proportion_per_trade.append(speculator_proportion)
+        self.excess_demand_per_trade.append(excess_demand)
+        self.spec_ex_demand_hovertext.append([str(speculator_proportion) + "%", "Excess Demand: " + str(excess_demand)])
+        self.market_price_change_per_trade.append(price_change)
+        return
 
     def output_market_price_graph(self):
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle'), vertical_spacing=0.1)
@@ -336,8 +366,85 @@ class SystemBook():
         )
         fig.update_xaxes(title_text='Time', row=2, col=1) 
         fig.show()
-
         return
 
+    def output_spec_content_vs_ex_demand_graph_on_bottom(self):
+        fig = make_subplots(rows=2, cols=2, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle', 'Speculative Content vs Excess Demand Per Trade'), vertical_spacing=0.05, row_heights=[0.45, 0.55])
+        fig.add_trace(pltly.Scatter(x=self.x_order_num, y=self.y_market_price_per_trade, mode='lines', name='Market Price', line=dict(color='blue'), hovertext=self.trade_hovertext), row=1, col=1)
+        fig.add_trace(pltly.Scatter(x=self.x_cycle, y=self.y_market_price_per_cycle, mode='lines', name='Market Price', line=dict(color='red'), hovertext=self.cycle_hovertext), row=1, col=2)
+        fig.add_trace(pltly.Scatter(x=self.speculator_proportion_per_trade, y=self.excess_demand_per_trade, mode='lines', name='Excess Demand', line=dict(color='green'), hovertext=self.spec_ex_demand_hovertext), row=2, col=1)
+        fig.update_layout(
+            height=1000,
+            width=1200,
+            title_text="Market Price Over Time",
+            showlegend=True,
+        )
+        fig.add_annotation(
+            text="Initialised Fundamentalists: {}<br>Initialised Speculators: {}<br>Number Of Agents Changed Per Cycle: {}<br>Number Of Cycles For Cooling Off Period Between Each Change: {}".format(
+                self.num_init_fundamentalists, 
+                self.num_init_speculators, 
+                self.chg_num_agent_pcycle, 
+                self.cycle_cool_off_per_dilution),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=-0.1,  
+            showarrow=False,
+            font=dict(
+                family="Arial, sans-serif",
+                size=12,
+                color="black"
+            ),
+            align="center",
+            bgcolor="white",  
+            bordercolor="black",
+            borderwidth=1
+        )
+        fig.show()
 
+    # def output_spec_content_vs_ex_demand_graph_on_bottom(self):
+    #     fig = make_subplots(rows=2, cols=1)
+
+    #     # Speculative Content vs Excess Demand Per Trade with colored markers
+    #     fig.add_trace(
+    #         pltly.Scatter(
+    #             x=self.speculator_proportion_per_trade,
+    #             y=self.excess_demand_per_trade,
+    #             mode='markers',
+    #             marker=dict(
+    #                 size=10,
+    #                 color=self.market_price_change_per_trade,  # Color by market price change
+    #                 colorscale='Viridis',  # Choose a colorscale
+    #                 colorbar=dict(
+    #                     title="Market Price Change"
+    #                 ),
+    #             ),
+    #             text=self.spec_ex_demand_hovertext,
+    #             name="Speculative Content vs Excess Demand"
+    #         ),
+    #         row=1, col=1
+    #     )
+
+    #     # Market Price Per Trade without coloring
+    #     fig.add_trace(
+    #         pltly.Scatter(
+    #             x=self.x_order_num,
+    #             y=self.y_market_price_per_trade,
+    #             mode='lines+markers',
+    #             marker=dict(
+    #                 size=6,
+    #                 color='blue'  # Default color for market price graph
+    #             ),
+    #             text=self.trade_hovertext,
+    #             name="Market Price Per Trade"
+    #         ),
+    #         row=2, col=1
+    #     )
+
+    #     fig.update_layout(
+    #         height=800,
+    #         title_text="Speculative Content vs Excess Demand Per Trade and Market Price Per Trade"
+    #     )
+
+    #     fig.show()
 

@@ -83,9 +83,6 @@ class OrderBook(object):
 
             for i in range(1, len(self.last_6_prices) - 1):
             #First price movement is positive
-                # print("{} {}".format(i+1,i))
-                # print("{} {}".format(self.last_6_prices[i+1],self.last_6_prices[i]))
-                # print(self.last_6_prices)
                 next_move = self.last_6_prices[i] - self.last_6_prices[i+1]
                 if(trend_set > 0):
                     if(next_move > 0):
@@ -110,19 +107,25 @@ class OrderBook(object):
                 return
             else:
                 return
-    
-    # def update_price_movements(self):
-    #     if(len(self.last_6_prices) < 6):
-    #         return 0
-    #     else:
-    #         temp_movement = []
-    #         i=0
-    #         while(i < len(self.last_6_prices) - 1):
-    #             price_move = ((self.last_6_prices[i]/self.last_6_prices[i+1]) - 1)*100
-    #             temp_movement.append(price_move)
-    #             i += 1
-    #         self.volatility = sum(temp_movement) / len(temp_movement)
-    #     return
+        
+    def get_num_bids(self):
+        qty = 0
+        for price in self.bids.priceTree:
+            order_list = self.bids.getPrice(price)
+            for order in order_list:
+                if order.agentID != 0:
+                    qty += order.qty
+        return qty
+
+    def get_num_asks(self):
+        qty = 0
+        for price in self.asks.priceTree:
+            order_list = self.asks.getPrice(price)
+            for order in order_list:
+                if order.agentID != 0:
+                    qty += order.qty
+        return qty 
+
 #####################################################################################################
 
     def clipPrice(self, price):
