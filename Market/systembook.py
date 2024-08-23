@@ -43,7 +43,7 @@ class SystemBook():
         self.spec_ex_demand_hovertext_trade = []
         self.market_price_change_per_trade = []
 
-        #Speculative Content vs Excess Demand Per Trade
+        #Speculative Content vs Excess Demand Per Cycle
         self.speculator_proportion_per_cycle = []
         self.excess_demand_per_cycle = []
         self.spec_ex_demand_hovertext_cycle = []
