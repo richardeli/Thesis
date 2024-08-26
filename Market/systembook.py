@@ -204,17 +204,21 @@ class SystemBook():
         #Remove Fundamentalist Agents
         if self.fund_dilute_rm == True and dilution_reversal == False:
             self.remove_fundamentalists()
+            self.add_speculators()
         #Add Fundamentalist Agents
         if self.fund_dilute_rm == True and dilution_reversal == True:
             self.add_fundamentalists()
+            self.remove_speculators()
         
         #Add Speculator Agents
         if self.fund_dilute_rm == False and dilution_reversal == False:
             self.add_speculators()
+            self.remove_fundamentalists()
         
         #Remove Speculator Agents
         if self.fund_dilute_rm == False and dilution_reversal == True:
             self.remove_speculators()
+            self.add_fundamentalists()
         return
     
     def add_speculators(self):
@@ -383,7 +387,7 @@ class SystemBook():
         return
 
     def output_graph(self):
-        fig = make_subplots(rows=2, cols=2, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle', 'Speculative Content vs Excess Demand Per Trade', 'Speculative Content vs Excess Demand Per Cycle'), vertical_spacing=0.05, row_heights=[0.45, 0.55])
+        fig = make_subplots(rows=2, cols=2, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle', 'Excess Demand vs Speculative Content Per Trade', 'Excess Demand vs Speculative Content Per Cycle'), vertical_spacing=0.05, row_heights=[0.45, 0.55])
         fig.add_trace(pltly.Scatter(x=self.x_order_num, y=self.y_market_price_per_trade, mode='lines', name='Market Price', line=dict(color='blue'), hovertext=self.trade_hovertext), row=1, col=1)
         fig.add_trace(pltly.Scatter(x=self.x_cycle, y=self.y_market_price_per_cycle, mode='lines', name='Market Price', line=dict(color='red'), hovertext=self.cycle_hovertext), row=1, col=2)
         fig.add_trace(pltly.Scatter(x=self.speculator_proportion_per_trade, y=self.excess_demand_per_trade, mode='lines', name='Excess Demand', line=dict(color='green'), hovertext=self.spec_ex_demand_hovertext_trade), row=2, col=1)
