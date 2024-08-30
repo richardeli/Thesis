@@ -6,6 +6,7 @@ from Book.orderBook import OrderTree
 import plotly.graph_objects as pltly
 import random
 from plotly.subplots import make_subplots
+import pandas as pd
 
 class SystemBook():
     def __init__(self, num_init_fundamentalists=25, num_init_speculators=25, init_upward_market_dir=True, num_trade_cycles=75, chg_num_agent_pcycle=20, cycle_cool_off_per_dilution=5,fund_dilute_rm=True, change_dilution_dir_cycle_num=None):
@@ -122,8 +123,8 @@ class SystemBook():
             self.store_market_price_per_cycle((self.LOB.get_market_price() / 1000), k, self.get_speculator_proportion())
             self.store_spec_content_vs_ex_demand_per_cycle(speculator_proportion, excess_demand, market_price_change, k)
             self.settle_system_trades()
-        # self.output_market_price_graph()
         self.output_graph()
+        self.smoothing_market_price_function()
         return
 
     def init_market_direction(self):
@@ -323,7 +324,7 @@ class SystemBook():
                 pass
     
     def calculate_market_price_post_trade(self, pre_trade_price, post_trade_price):
-        calc = abs(pre_trade_price - post_trade_price)
+        calc = pre_trade_price - post_trade_price
         return calc
 
     def store_market_price_per_trade(self, order_num, y_market_price, speculator_proportion, trade_cycle):
@@ -350,42 +351,7 @@ class SystemBook():
         self.spec_ex_demand_hovertext_cycle.append([str(speculator_proportion) + "%", "Excess Demand: " + str(excess_demand), "Cycle: " + str(cycle)])
         self.market_price_change_per_cycle.append(price_change)
         return
-
-    # def output_market_price_graph(self):
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle'), vertical_spacing=0.1)
-        fig.add_trace(pltly.Scatter(x=self.x_order_num, y=self.y_market_price_per_trade, mode='lines', name='Trade', line=dict(color='blue'), hovertext=self.trade_hovertext), row=1, col=1)
-        fig.add_trace(pltly.Scatter(x=self.x_cycle, y=self.y_market_price_per_cycle, mode='lines', name='Cycle', line=dict(color='red'), hovertext=self.cycle_hovertext), row=2, col=1)
-        fig.update_layout(
-            height=700,
-            width=800,
-            title_text="Market Price Over Time",
-            showlegend=True,
-        )
-        fig.add_annotation(
-            text="Initialised Fundamentalists: {}<br>Initialised Speculators: {}<br>Number Of Agents Changed Per Cycle: {}<br>Number Of Cycles For Cooling Off Period Between Each Change: {}".format(
-                self.num_init_fundamentalists, 
-                self.num_init_speculators, 
-                self.chg_num_agent_pcycle, 
-                self.cycle_cool_off_per_dilution),
-            xref="paper",
-            yref="paper",
-            x=0.5,
-            y=-0.16,  # Positioning it below the plot
-            showarrow=False,
-            font=dict(
-                family="Arial, sans-serif",
-                size=12,
-                color="black"
-            ),
-            align="center",
-            bgcolor="white",  # Background color for better readability
-            bordercolor="black",
-            borderwidth=1
-        )
-        fig.update_xaxes(title_text='Time', row=2, col=1) 
-        fig.show()
-        return
-
+    
     def output_graph(self):
         fig = make_subplots(rows=2, cols=2, subplot_titles=('Market Price Per Trade', 'Market Price Per Cycle', 'Excess Demand vs Speculative Content Per Trade', 'Excess Demand vs Speculative Content Per Cycle'), vertical_spacing=0.05, row_heights=[0.45, 0.55])
         fig.add_trace(pltly.Scatter(x=self.x_order_num, y=self.y_market_price_per_trade, mode='lines', name='Market Price', line=dict(color='blue'), hovertext=self.trade_hovertext), row=1, col=1)
@@ -423,49 +389,39 @@ class SystemBook():
         )
         fig.show()
 
-    # def output_spec_content_vs_ex_demand_graph_on_bottom(self):
-    #     fig = make_subplots(rows=2, cols=1)
+    def smoothing_market_price_function(self):
+        data = self.y_market_price_per_trade
+        data_series = pd.Series(data)
+        # Define parameters
+        window_size = 150  # Number of periods to check for stability
+        drop_threshold = 0.2  # Threshold for significant drop (20% drop in value)
 
-    #     # Speculative Content vs Excess Demand Per Trade with colored markers
-    #     fig.add_trace(
-    #         pltly.Scatter(
-    #             x=self.speculator_proportion_per_trade,
-    #             y=self.excess_demand_per_trade,
-    #             mode='markers',
-    #             marker=dict(
-    #                 size=10,
-    #                 color=self.market_price_change_per_trade,  # Color by market price change
-    #                 colorscale='Viridis',  # Choose a colorscale
-    #                 colorbar=dict(
-    #                     title="Market Price Change"
-    #                 ),
-    #             ),
-    #             text=self.spec_ex_demand_hovertext,
-    #             name="Speculative Content vs Excess Demand"
-    #         ),
-    #         row=1, col=1
-    #     )
+        # Calculate the rate of change and the rolling mean
+        rate_of_change = data_series.pct_change()  # Percentage change
+        moving_avg = data_series.rolling(window=window_size, center=True).mean()
 
-    #     # Market Price Per Trade without coloring
-    #     fig.add_trace(
-    #         pltly.Scatter(
-    #             x=self.x_order_num,
-    #             y=self.y_market_price_per_trade,
-    #             mode='lines+markers',
-    #             marker=dict(
-    #                 size=6,
-    #                 color='blue'  # Default color for market price graph
-    #             ),
-    #             text=self.trade_hovertext,
-    #             name="Market Price Per Trade"
-    #         ),
-    #         row=2, col=1
-    #     )
+        # Detect significant drops
+        significant_drops = (rate_of_change < -drop_threshold).astype(int)
+        drop_indices = significant_drops[significant_drops == 1].index
 
-    #     fig.update_layout(
-    #         height=800,
-    #         title_text="Speculative Content vs Excess Demand Per Trade and Market Price Per Trade"
-    #     )
+        # Function to find equilibrium points
+        def find_equilibrium(data_series, drop_indices, window_size=10):
+            equilibrium_points = []
+            for index in drop_indices:
+                # Ensure index is within bounds
+                if index >= window_size and index + window_size < len(data_series):
+                    # Check if the price remains stable within a new lower range
+                    previous_window = data_series[index - window_size : index]
+                    current_window = data_series[index : index + window_size]
+                    
+                    # Check if the current window is stable and lower than the previous window
+                    if all(current_window < previous_window.min()):  # Ensuring it's a significant drop
+                        equilibrium_points.append(index)
+            return equilibrium_points
 
-    #     fig.show()
+        # Identify equilibrium points
+        equilibrium_points = find_equilibrium(data_series, drop_indices, window_size)
 
+        # Print the indices and values of equilibrium points
+        print("Equilibrium Points (Indices):", equilibrium_points)
+        print("Equilibrium Points (Prices):", [data_series[i] for i in equilibrium_points])
