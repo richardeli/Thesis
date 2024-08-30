@@ -7,7 +7,6 @@ import plotly.graph_objects as pltly
 import random
 from plotly.subplots import make_subplots
 import pandas as pd
-from scipy.signal import find_peaks
 
 class SystemBook():
     def __init__(self, num_init_fundamentalists=25, num_init_speculators=25, init_upward_market_dir=True, num_trade_cycles=75, chg_num_agent_pcycle=20, cycle_cool_off_per_dilution=5,fund_dilute_rm=True, change_dilution_dir_cycle_num=None):
@@ -88,7 +87,6 @@ class SystemBook():
     def trade_cycle(self):
         dilution_reversal = False
         for k in range(0, self.num_trade_cycles):
-            print("Trade Cycle: {}".format(k))
             if k == self.change_dilution_dir_cycle_num: #Change direction of dilution (reversal)
                 dilution_reversal = True
 
@@ -126,7 +124,7 @@ class SystemBook():
             self.store_spec_content_vs_ex_demand_per_cycle(speculator_proportion, excess_demand, market_price_change, k)
             self.settle_system_trades()
         self.output_graph()
-        self.bifurcation_point_finder()
+        self.smoothing_market_price_function()
         return
 
     def init_market_direction(self):
@@ -391,47 +389,39 @@ class SystemBook():
         )
         fig.show()
 
-    def bifurcation_point_finder(self):
+    def smoothing_market_price_function(self):
         data = self.y_market_price_per_trade
         data_series = pd.Series(data)
-        
-        # Parameters for smoothing
-        window_size = 10000  
-        min_distance = 250
-        
-        # Detect peaks in the data set
-        peaks, _ = find_peaks(data_series, distance=min_distance)
-        peaks = peaks[::-1]  # Reverse the order of peaks
+        # Define parameters
+        window_size = 150  # Number of periods to check for stability
+        drop_threshold = 0.2  # Threshold for significant drop (20% drop in value)
 
-        # Iterate through peaks to find the highest one before a drop
-        highest_price = None
-        highest_price_index = None
-        previous_range = None
+        # Calculate the rate of change and the rolling mean
+        rate_of_change = data_series.pct_change()  # Percentage change
+        moving_avg = data_series.rolling(window=window_size, center=True).mean()
 
-        for peak in peaks: #Peak list iteration
-            if peak > 0:
-                if peak + window_size < len(data_series):
-                    start_index = peak
-                    end_index = peak + window_size
-                    window = data_series[start_index:end_index + 1]
+        # Detect significant drops
+        significant_drops = (rate_of_change < -drop_threshold).astype(int)
+        drop_indices = significant_drops[significant_drops == 1].index
 
-                    window_max = window.max()
-                    window_min = window.min()
-                    current_range = window_max - window_min
+        # Function to find equilibrium points
+        def find_equilibrium(data_series, drop_indices, window_size=10):
+            equilibrium_points = []
+            for index in drop_indices:
+                # Ensure index is within bounds
+                if index >= window_size and index + window_size < len(data_series):
+                    # Check if the price remains stable within a new lower range
+                    previous_window = data_series[index - window_size : index]
+                    current_window = data_series[index : index + window_size]
+                    
+                    # Check if the current window is stable and lower than the previous window
+                    if all(current_window < previous_window.min()):  # Ensuring it's a significant drop
+                        equilibrium_points.append(index)
+            return equilibrium_points
 
-                    window_peak_index = window.idxmax()
-                    window_condition = window_max > window_min * 50
-                    print("Max: {} ||| Ind: {} ||| Min: {} ||| Ind: {} ||| Condition: {}".format(window_max, window_peak_index, window_min, end_index, window_condition))
-                    if(window_condition and (current_range <= previous_range)):
-                        highest_price = data_series[window_peak_index]
-                        highest_price_index = window_peak_index
-                        break
-                    previous_range = current_range
+        # Identify equilibrium points
+        equilibrium_points = find_equilibrium(data_series, drop_indices, window_size)
 
-        if highest_price is not None and highest_price_index is not None:
-            print(f"Highest market price before significant drop: {highest_price}")
-            print(f"Index of the highest market price: {highest_price_index}")
-        else:
-            print("No significant drop detected.")
-        
-        return highest_price, highest_price_index
+        # Print the indices and values of equilibrium points
+        print("Equilibrium Points (Indices):", equilibrium_points)
+        print("Equilibrium Points (Prices):", [data_series[i] for i in equilibrium_points])
