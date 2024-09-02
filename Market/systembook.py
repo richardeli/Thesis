@@ -122,7 +122,7 @@ class SystemBook():
                     self.store_market_price_per_trade(self.order_num, market_price, speculator_proportion, k)
                     self.store_spec_content_vs_ex_demand_per_trade(speculator_proportion, excess_demand, market_price_change)
                     self.order_num += 1
-            self.store_market_price_per_cycle((self.LOB.get_market_price() / 1000), k, self.get_speculator_proportion())
+            self.store_market_price_per_cycle(market_price, k, speculator_proportion)
             self.store_spec_content_vs_ex_demand_per_cycle(speculator_proportion, excess_demand, market_price_change, k)
             self.settle_system_trades()
         self.output_graph()
@@ -396,7 +396,7 @@ class SystemBook():
         data_series = pd.Series(data)
         
         # Parameters for smoothing
-        window_size = 10000  
+        window_size = 10000
         min_distance = 250
         
         # Detect peaks in the data set
