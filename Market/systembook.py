@@ -397,7 +397,7 @@ class SystemBook():
         
         # Parameters for smoothing
         window_size = 10000
-        min_distance = 250
+        min_distance = 200 #250
         
         # Detect peaks in the data set
         peaks, _ = find_peaks(data_series, distance=min_distance)
