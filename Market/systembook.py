@@ -3,14 +3,18 @@ from Agents.speculator import Speculator
 from Agents.moderator import Moderator
 from Book.orderBook import OrderBook
 from Book.orderBook import OrderTree
-import plotly.graph_objects as pltly
 import random
-from plotly.subplots import make_subplots
 import pandas as pd
+import os 
+import csv
+import plotly.graph_objects as pltly
+from plotly.subplots import make_subplots
 from scipy.signal import find_peaks
 
 class SystemBook():
-    def __init__(self, num_init_fundamentalists=25, num_init_speculators=25, init_upward_market_dir=True, num_trade_cycles=75, chg_num_agent_pcycle=20, cycle_cool_off_per_dilution=5,fund_dilute_rm=True, change_dilution_dir_cycle_num=None):
+    def __init__(self, save_file_name, num_init_fundamentalists=25, num_init_speculators=25, init_upward_market_dir=True, 
+                 num_trade_cycles=75, chg_num_agent_pcycle=20, cycle_cool_off_per_dilution=5,
+                 fund_dilute_rm=True, change_dilution_dir_cycle_num=None):
         self.agent_dict = {}
         self.moderator = Moderator()
         self.LOB = OrderBook()
@@ -21,6 +25,7 @@ class SystemBook():
         self.init_upward_market_dir = init_upward_market_dir
         self.fund_dilute_rm = fund_dilute_rm
         self.cycle_cool_off_per_dilution = cycle_cool_off_per_dilution
+        self.save_file_name = save_file_name + ".csv"
         self.ids = 1
         self.init_agent_LOB_environment()
         self.init_market_direction()
@@ -50,6 +55,10 @@ class SystemBook():
         self.excess_demand_per_cycle = []
         self.spec_ex_demand_hovertext_cycle = []
         self.market_price_change_per_cycle = []
+
+        #CUSP Information
+        self.cusp_market_price = 0
+        self.cusp_price_index = 0
 
     def init_agent_LOB_environment(self):
         self.agent_dict[self.moderator.get_agentID()] = {
@@ -126,7 +135,7 @@ class SystemBook():
             self.store_spec_content_vs_ex_demand_per_cycle(speculator_proportion, excess_demand, market_price_change, k)
             self.settle_system_trades()
         self.output_graph()
-        self.bifurcation_point_finder()
+        self.cusp_market_price, self.cusp_price_index = self.bifurcation_point_finder()
         return
 
     def init_market_direction(self):
@@ -433,5 +442,26 @@ class SystemBook():
             print(f"Index of the highest market price: {highest_price_index}")
         else:
             print("No significant drop detected.")
+            return 0, 0
         
         return highest_price, highest_price_index
+
+    def save_to_excel(self, filename):
+        directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\{}'.format(filename + ".csv")
+
+        if not os.path.exists(directory):
+            with open(directory, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Fundamentalists Initialised', 'Speculators Initialised', 'Speculators Added/Removed Per Cycle', 
+                                 'Num Cycle', 'Cool off Per Cycle', 'Speculator Proportion at CUSP', 'Market Price at CUSP'])
+                        
+        new_data_row_to_insert = [
+            self.num_init_fundamentalists, self.num_init_speculators, self.chg_num_agent_pcycle,
+                    self.num_trade_cycles, self.cycle_cool_off_per_dilution, 
+                    self.trade_hovertext[self.cusp_price_index][0] , self.cusp_market_price
+        ]
+
+        with open(directory, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(new_data_row_to_insert)
+
