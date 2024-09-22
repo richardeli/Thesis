@@ -446,22 +446,19 @@ class SystemBook():
         
         return highest_price, highest_price_index
 
-    def compute_cusp_kurtosis(self):
-        market_price_kurt_data = pd.Series(self.y_market_price_per_trade[:self.cusp_price_index])
+    def compute_cusp_kurtosis(self, mp_data, ed_data, sp_data, start_index, end_index):
+        market_price_kurt_data = pd.Series(mp_data[start_index:end_index])
         market_price_kurtosis = market_price_kurt_data.kurtosis().round(5)
 
-        excess_demand_kurt_data = pd.Series(self.excess_demand_per_trade[:self.cusp_price_index])
+        excess_demand_kurt_data = pd.Series(ed_data[start_index:end_index])
         excess_demand_kurtosis = excess_demand_kurt_data.kurtosis().round(5)
 
-        spec_prop_kurt_data = pd.Series(self.speculator_proportion_per_trade[:self.cusp_price_index])
+        spec_prop_kurt_data = pd.Series(sp_data[start_index:end_index])
         spec_prop_kurtosis = spec_prop_kurt_data.kurtosis().round(5)
 
         return market_price_kurtosis, excess_demand_kurtosis, spec_prop_kurtosis
 
-    def compute_cusp_volatility(self):
-        mp_data = self.market_price_change_per_trade
-        index = self.cusp_price_index
-        
+    def compute_cusp_volatility(self, mp_data, index):       
         previous_100_prices = mp_data[index-100:index]
         previous_10_prices = mp_data[index-10:index]
 
@@ -478,11 +475,8 @@ class SystemBook():
 
         return volatility_100, volatility_10
 
-    def compute_overall_volatility_pre_cusp(self):
-        mp_data = self.market_price_change_per_trade
-        index = self.cusp_price_index
-
-        mp_data_series = pd.Series(mp_data[:index])
+    def compute_overall_volatility_pre_cusp(self, mp_data, start_ind, end_ind):
+        mp_data_series = pd.Series(mp_data[start_ind:end_ind])
 
         returns = mp_data_series.pct_change().dropna()
         returns.replace([np.inf, -np.inf], np.nan, inplace=True)
@@ -490,12 +484,9 @@ class SystemBook():
         volatility_ovr = returns.std().round(3)
         return volatility_ovr
 
-    def compute_cusp_price_difference(self):
-        mp_data = self.market_price_change_per_trade
-        index = self.cusp_price_index
-        
-        previous_100_prices = mp_data[index-100:index]
-        all_previous_prices = mp_data[:index]
+    def compute_cusp_price_difference(self, mp_data, start_ind, end_ind):        
+        previous_100_prices = mp_data[end_ind-100:end_ind]
+        all_previous_prices = mp_data[start_ind:end_ind]
 
         previous_100_series = pd.Series(previous_100_prices)
         all_previous_series = pd.Series(all_previous_prices)
@@ -510,19 +501,21 @@ class SystemBook():
 
         return range_100, range_all
 
-    def compute_cusp_returns(self):
-        print(self.LOB.get_trades()[0])
-        return
-
     def save_to_excel(self, filename):
         directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/{}'.format(filename + ".csv")
-        kurt_mp, kurt_ed, kurt_sp = self.compute_cusp_kurtosis()
-        cusp_vol_100, cusp_vol_10 = self.compute_cusp_volatility()
-        ovr_vol = self.compute_overall_volatility_pre_cusp()
-        ovr_price_diff, prev_100_price_diff = self.compute_cusp_price_difference()
-        self.compute_cusp_returns()
+        mp_data = self.y_market_price_per_trade
+        ed_data = self.excess_demand_per_trade
+        sp_data = self.speculator_proportion_per_trade
+        mp_c_data = self.market_price_change_per_trade
 
-        # self.compute return
+        start_index = 0
+        cusp_index = self.cusp_price_index
+
+        kurt_mp, kurt_ed, kurt_sp = self.compute_cusp_kurtosis(mp_data, ed_data, sp_data, start_index, cusp_index)
+        cusp_vol_100, cusp_vol_10 = self.compute_cusp_volatility(mp_c_data, cusp_index)
+        ovr_vol = self.compute_overall_volatility_pre_cusp(mp_c_data, start_index, cusp_index)
+        ovr_price_diff, prev_100_price_diff = self.compute_cusp_price_difference(mp_c_data, start_index, cusp_index)
+
         if not os.path.exists(directory):
             with open(directory, mode='w', newline='') as file:
                 writer = csv.writer(file)
