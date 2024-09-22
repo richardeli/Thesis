@@ -10,9 +10,10 @@ import csv
 import plotly.graph_objects as pltly
 from plotly.subplots import make_subplots
 from scipy.signal import find_peaks
+import numpy as np
 
 class SystemBook():
-    def __init__(self, save_file_name, num_init_fundamentalists=25, num_init_speculators=25, init_upward_market_dir=True, 
+    def __init__(self, num_init_fundamentalists=25, num_init_speculators=25, init_upward_market_dir=True, 
                  num_trade_cycles=75, chg_num_agent_pcycle=20, cycle_cool_off_per_dilution=5,
                  fund_dilute_rm=True, change_dilution_dir_cycle_num=None):
         self.agent_dict = {}
@@ -25,7 +26,6 @@ class SystemBook():
         self.init_upward_market_dir = init_upward_market_dir
         self.fund_dilute_rm = fund_dilute_rm
         self.cycle_cool_off_per_dilution = cycle_cool_off_per_dilution
-        self.save_file_name = save_file_name + ".csv"
         self.ids = 1
         self.init_agent_LOB_environment()
         self.init_market_direction()
@@ -446,22 +446,122 @@ class SystemBook():
         
         return highest_price, highest_price_index
 
-    def save_to_excel(self, filename):
-        directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\{}'.format(filename + ".csv")
+    def compute_cusp_kurtosis(self, mp_data, ed_data, sp_data, start_ind, end_ind):
+        market_price_kurt_data = pd.Series(mp_data[start_ind:end_ind])
+        market_price_kurtosis = market_price_kurt_data.kurtosis().round(5)
+
+        excess_demand_kurt_data = pd.Series(ed_data[start_ind:end_ind])
+        excess_demand_kurtosis = excess_demand_kurt_data.kurtosis().round(5)
+
+        spec_prop_kurt_data = pd.Series(sp_data[start_ind:end_ind])
+        spec_prop_kurtosis = spec_prop_kurt_data.kurtosis().round(5)
+
+        return market_price_kurtosis, excess_demand_kurtosis, spec_prop_kurtosis
+
+    def compute_cusp_volatility(self, mp_data, index):        
+        previous_100_prices = mp_data[index-100:index]
+        previous_10_prices = mp_data[index-10:index]
+
+        print(index)
+        print(previous_100_prices)
+        print(previous_10_prices)
+
+        previous_100_series = pd.Series(previous_100_prices)
+        previous_10_series = pd.Series(previous_10_prices)
+
+        returns_100 = previous_100_series.pct_change().dropna()
+        returns_10 = previous_10_series.pct_change().dropna()
+        returns_100.replace([np.inf, -np.inf], np.nan, inplace=True)
+        returns_10.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+        volatility_100 = returns_100.std().round(3)
+        volatility_10 = returns_10.std().round(3)
+
+        return volatility_100, volatility_10
+
+    def compute_overall_volatility_pre_cusp(self, mp_data, start_ind, end_ind):
+        mp_data_series = pd.Series(mp_data[start_ind:end_ind])
+
+        returns = mp_data_series.pct_change().dropna()
+        returns.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+        volatility_ovr = returns.std().round(3)
+        return volatility_ovr
+
+    def compute_cusp_price_difference(self, mp_data, start_ind, end_ind):        
+        previous_100_prices = mp_data[end_ind-100:end_ind]
+        all_previous_prices = mp_data[start_ind:end_ind]
+
+        previous_100_series = pd.Series(previous_100_prices)
+        all_previous_series = pd.Series(all_previous_prices)
+
+        returns_100 = previous_100_series.pct_change().dropna()
+        all_returns = all_previous_series.pct_change().dropna()
+        returns_100.replace([np.inf, -np.inf], np.nan, inplace=True)
+        all_returns.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+        range_100 = (returns_100.max() - returns_100.min()).round(3)
+        range_all = (all_returns.max() - all_returns.min()).round(3)
+        return range_100, range_all
+
+    def save_excel_per_simulation(self, filename):
+        # directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\{}'.format(filename + ".csv")
+        directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/{}'.format(filename + ".csv")
+
+        mp_data = self.y_market_price_per_trade
+        ed_data = self.excess_demand_per_trade
+        sp_data = self.speculator_proportion_per_trade
+        start_ind = 0
+        cusp_ind = self.cusp_price_index
+
+        kurt_mp, kurt_ed, kurt_sp = self.compute_cusp_kurtosis(mp_data, ed_data, sp_data, start_ind, cusp_ind)
+        cusp_vol_100, cusp_vol_10 = self.compute_cusp_volatility(mp_data, cusp_ind)
+        ovr_vol = self.compute_overall_volatility_pre_cusp(mp_data, start_ind, cusp_ind)
+        ovr_price_diff, prev_100_price_diff = self.compute_cusp_price_difference(mp_data, start_ind, cusp_ind)
 
         if not os.path.exists(directory):
             with open(directory, mode='w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(['Fundamentalists Initialised', 'Speculators Initialised', 'Speculators Added/Removed Per Cycle', 
-                                 'Num Cycle', 'Cool off Per Cycle', 'Speculator Proportion at CUSP', 'Market Price at CUSP'])
+                                 'Num Cycle', 'Cool off Per Cycle', 'Speculator Proportion at CUSP', 'Market Price at CUSP', 'Excess Demand',
+                                 'Kurtosis MP', 'Kurtosis ED', 'Kurtosis SP', 'MP Volatility Last 100 Trades','MP Volatility Last 10 Trades',
+                                  'Overall Sim Volatility',  'Pre-CUSP Market Price Difference', 'Last 100 Pre-CUSP Market Prices Difference'])
                         
         new_data_row_to_insert = [
             self.num_init_fundamentalists, self.num_init_speculators, self.chg_num_agent_pcycle,
                     self.num_trade_cycles, self.cycle_cool_off_per_dilution, 
-                    self.trade_hovertext[self.cusp_price_index][0] , self.cusp_market_price
+                    self.trade_hovertext[self.cusp_price_index][0] , self.cusp_market_price, self.excess_demand_per_trade[self.cusp_price_index],
+                    kurt_mp, kurt_ed, kurt_sp, cusp_vol_100, cusp_vol_10, 
+                    ovr_vol, ovr_price_diff, prev_100_price_diff
         ]
 
         with open(directory, mode='a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(new_data_row_to_insert)
+        
+    def save_excel_per_run_test_window(self, filename):
+        # directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\{}'.format(filename + ".csv")
+        directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/{}'.format(filename + ".csv")
 
+        kurt_mp, kurt_ed, kurt_sp = self.compute_cusp_kurtosis()
+        cusp_vol_100, cusp_vol_10 = self.compute_cusp_volatility()
+        ovr_vol = self.compute_overall_volatility_pre_cusp()
+        ovr_price_diff, prev_100_price_diff = self.compute_cusp_price_difference()
+        self.compute_cusp_returns()
+
+        if not os.path.exists(directory):
+            with open(directory, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Num Cycle', 'Speculator Proportion at CUSP', 'Market Price at CUSP', 'Excess Demand'
+                                 'Kurtosis MP', 'Kurtosis ED', 'Kurtosis SP', 'MP Volatility Last 100 Trades','MP Volatility Last 10 Trades',
+                                  'Overall Sim Volatility',  'Pre-CUSP Market Price Difference', 'Last 100 Pre-CUSP Market Prices Difference'])
+                        
+        new_data_row_to_insert = [
+                    self.num_trade_cycles, self.trade_hovertext[self.cusp_price_index][0] , 
+                    self.cusp_market_price, self.excess_demand_per_trade[self.cusp_price_index],
+                    kurt_mp, kurt_ed, kurt_sp, cusp_vol_100, cusp_vol_10, 
+                    ovr_vol, ovr_price_diff, prev_100_price_diff
+        ]
+
+        with open(directory, mode='a', newline='') as file:
+            writer = csv.writer(file)
