@@ -58,7 +58,7 @@ class SystemBook():
         self.market_price_change_per_cycle = []
 
         #CUSP Information
-        self.cusp_market_price = 0
+        self.cusp_market_price = 0.0
         self.cusp_price_index = 0
 
     def init_agent_LOB_environment(self):
@@ -443,7 +443,7 @@ class SystemBook():
             print(f"Index of the highest market price: {highest_price_index}")
         else:
             print("No significant drop detected.")
-            return 0, 0
+            return 0.0, 0
         
         return highest_price, highest_price_index
 
@@ -496,13 +496,14 @@ class SystemBook():
 
         return range_all, range_100
 
-    def save_to_excel(self, filename):
-        self.save_per_simulation_excel(filename)
-        self.save_per_window_excel(filename)
+    def save_to_excel(self, num_sims, num_runs):
+        self.save_per_simulation_excel(num_sims, num_runs)
+        self.save_per_window_excel(num_sims, num_runs)
 
-    def save_per_simulation_excel(self, filename):
-        directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Simulation\{}'.format(filename + ".csv")
-        # directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Simulation/{}'.format(filename + ".csv")
+    def save_per_simulation_excel(self, num_sims, num_runs):
+        file_name = "Simulation {}".format(num_sims)
+        directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Simulation\{}'.format(file_name + ".csv")
+        # directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Simulation/{}'.format(file_name + ".csv")
         mp_data = self.y_market_price_per_trade
         ed_data = self.excess_demand_per_trade
         sp_data = self.speculator_proportion_per_trade
@@ -519,13 +520,13 @@ class SystemBook():
         if not os.path.exists(directory):
             with open(directory, mode='w', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow(['Fundamentalists Initialised', 'Speculators Initialised', 'Speculators Added/Removed Per Cycle', 
+                writer.writerow(['Run Number', 'Fundamentalists Initialised', 'Speculators Initialised', 'Speculators Added/Removed Per Cycle', 
                                  'Num Cycle', 'Cool off Per Cycle', 'Speculator Proportion at CUSP', 'Market Price at CUSP', 'Excess Demand',
                                  'Kurtosis MP', 'Kurtosis ED', 'Kurtosis SP', 'MP Volatility Last 100 Trades','MP Volatility Last 10 Trades',
                                   'Overall Sim Volatility',  'Pre-CUSP Market Price Difference', 'Last 100 Pre-CUSP Market Prices Difference'])
                         
         new_data_row_to_insert = [
-            self.num_init_fundamentalists, self.num_init_speculators, self.chg_num_agent_pcycle,
+                    num_runs, self.num_init_fundamentalists, self.num_init_speculators, self.chg_num_agent_pcycle,
                     self.num_trade_cycles, self.cycle_cool_off_per_dilution, 
                     self.trade_hovertext[self.cusp_price_index][0] , self.cusp_market_price, self.excess_demand_per_trade[self.cusp_price_index],
                     kurt_mp, kurt_ed, kurt_sp, cusp_vol_100, cusp_vol_10, 
@@ -537,9 +538,12 @@ class SystemBook():
             writer.writerow(new_data_row_to_insert)
         return
     
-    def save_per_window_excel(self, filename):    
-        directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}'.format(filename + ".csv")
-        # directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Window/{}'.format(filename + ".csv")
+    def save_per_window_excel(self, num_sims, num_runs):
+        folder_name = "Simulation {}".format(num_sims)
+        folder_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}'.format(folder_name)
+        file_name = "Sim {} Run {}".format(num_sims, num_runs)
+        file_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}\{}'.format(folder_name, file_name + ".csv")
+        # directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Window/{}/{}'.format(file_name + ".csv")
         mp_data = self.y_market_price_per_trade
         ed_data = self.excess_demand_per_trade
         sp_data = self.speculator_proportion_per_trade
@@ -551,14 +555,16 @@ class SystemBook():
         window_num = 0
         window_size = int(math.ceil(len(mp_data[:cusp_index]) / 100))
     
-        if not os.path.exists(directory):
-            with open(directory, mode='w', newline='') as file:
+        if not os.path.exists(file_directory):
+            os.makedirs(folder_directory)
+            with open(file_directory, mode='w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(['Window Num', 'Num Data Points in Row', 'Speculator Proportion', 'Market Price', 'Excess Demand',
                                  'Kurtosis MP', 'Kurtosis ED', 'Kurtosis SP', 'MP Volatility Last 100 Trades','MP Volatility Last 10 Trades',
                                   'Overall Sim Volatility',  'Pre-CUSP Market Price Difference', 'Last 100 Pre-CUSP Market Prices Difference'])
         
         while start_index + window_size <= data_length:
+            print('stuck here')
             end_index = start_index + window_size
 
             kurt_mp, kurt_ed, kurt_sp = self.compute_cusp_kurtosis(mp_data, ed_data, sp_data, start_index, end_index)
@@ -575,7 +581,7 @@ class SystemBook():
                         ovr_vol, ovr_price_diff, prev_100_price_diff
             ]
 
-            with open(directory, mode='a', newline='') as file:
+            with open(file_directory, mode='a', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(new_data_row_to_insert)
             
