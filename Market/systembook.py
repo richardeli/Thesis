@@ -502,8 +502,8 @@ class SystemBook():
 
     def save_per_simulation_excel(self, num_sims, num_runs):
         file_name = "Simulation {}".format(num_sims)
-        directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Simulation\{}'.format(file_name + ".csv")
-        # directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Simulation/{}'.format(file_name + ".csv")
+        # directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Simulation\{}'.format(file_name + ".csv")
+        directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Simulation/{}'.format(file_name + ".csv")
         mp_data = self.y_market_price_per_trade
         ed_data = self.excess_demand_per_trade
         sp_data = self.speculator_proportion_per_trade
@@ -540,10 +540,13 @@ class SystemBook():
     
     def save_per_window_excel(self, num_sims, num_runs):
         folder_name = "Simulation {}".format(num_sims)
-        folder_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}'.format(folder_name)
-        file_name = "Sim {} Run {}".format(num_sims, num_runs)
-        file_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}\{}'.format(folder_name, file_name + ".csv")
-        # directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Window/{}/{}'.format(file_name + ".csv")
+        # folder_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}'.format(folder_name)
+        folder_directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Window/{}'.format(folder_name)
+
+        file_name = "Run {}".format(num_runs)
+        # file_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}\{}'.format(folder_name, file_name + ".csv")
+        file_directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Window/{}/{}'.format(folder_name, file_name + ".csv")
+
         mp_data = self.y_market_price_per_trade
         ed_data = self.excess_demand_per_trade
         sp_data = self.speculator_proportion_per_trade
@@ -554,9 +557,11 @@ class SystemBook():
         start_index = 0
         window_num = 0
         window_size = int(math.ceil(len(mp_data[:cusp_index]) / 100))
-    
-        if not os.path.exists(file_directory):
+
+        if not os.path.exists(folder_directory):
             os.makedirs(folder_directory)
+
+        if not os.path.exists(file_directory):
             with open(file_directory, mode='w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(['Window Num', 'Num Data Points in Row', 'Speculator Proportion', 'Market Price', 'Excess Demand',
@@ -564,9 +569,7 @@ class SystemBook():
                                   'Overall Sim Volatility',  'Pre-CUSP Market Price Difference', 'Last 100 Pre-CUSP Market Prices Difference'])
         
         while start_index + window_size <= data_length:
-            print('stuck here')
             end_index = start_index + window_size
-
             kurt_mp, kurt_ed, kurt_sp = self.compute_cusp_kurtosis(mp_data, ed_data, sp_data, start_index, end_index)
             cusp_vol_100, cusp_vol_10 = self.compute_cusp_volatility(mp_c_data, end_index)
             ovr_vol = self.compute_overall_volatility_pre_cusp(mp_c_data, start_index, end_index)

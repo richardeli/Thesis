@@ -1,0 +1,5 @@
+Run Number,Fundamentalists Initialised,Speculators Initialised,Speculators Added/Removed Per Cycle,Num Cycle,Cool off Per Cycle,Speculator Proportion at CUSP,Market Price at CUSP,Excess Demand,Kurtosis MP,Kurtosis ED,Kurtosis SP,MP Volatility Last 100 Trades,MP Volatility Last 10 Trades,Overall Sim Volatility,Pre-CUSP Market Price Difference,Last 100 Pre-CUSP Market Prices Difference
+1,1000,1500,125,30,5,75.0%,92.3,-52,-1.28054,-0.19448,-1.28264,1.924,4.442,6.359,123.2,30.2
+2,1000,1500,125,30,5,75.0%,95.1,-7,-0.5077,0.24504,-1.03937,0.565,0.577,7.343,118.3,17.0
+3,1000,1500,125,30,5,75.0%,91.3,-153,-0.4018,-0.511,-1.26674,0.61,nan,5.795,121.3,27.95
+4,1000,1500,125,30,5,75.0%,54.7,-282,-0.25908,-1.00601,-1.02525,0.56,0.577,7.183,122.8,17.3
