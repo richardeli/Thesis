@@ -608,3 +608,50 @@ class SystemBook():
                 window_num += 1
                 if start_index > cusp_index:
                     return
+            
+    def save_last_1000_trades_excel(self, num_sims, num_runs):
+        folder_name = "Simulation {}".format(num_sims)
+        folder_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}'.format(folder_name)
+        # folder_directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Window/{}'.format(folder_name)
+
+        file_name = "Run {}".format(num_runs)
+        file_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Window\{}\{}'.format(folder_name, file_name + ".csv")
+        # file_directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Window/{}/{}'.format(folder_name, file_name + ".csv")
+
+        mp_data = self.y_market_price_per_trade
+        ed_data = self.excess_demand_per_trade
+        sp_data = self.speculator_proportion_per_trade
+        mp_c_data = self.market_price_change_per_trade
+
+        cusp_index = self.cusp_price_index
+        start_index = max(0, cusp_index - 1000)  
+        end_index = cusp_index
+
+        cusp_found = False
+        if cusp_index > 0:
+            cusp_found = True
+
+        if not os.path.exists(folder_directory):
+            os.makedirs(folder_directory)
+
+        if not os.path.exists(file_directory):
+            with open(file_directory, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Window Num', 'Num Data Points in Row', 'Speculator Proportion', 'Market Price', 'Excess Demand',
+                                 'Kurtosis MP', 'Kurtosis ED', 'Kurtosis SP', 'MP Volatility Last 100 Trades','MP Volatility Last 10 Trades',
+                                  'Overall Sim Volatility',  'Pre-CUSP Market Price Difference', 'Last 100 Pre-CUSP Market Prices Difference'])
+        
+        if cusp_found == True:
+            for i in range(start_index, end_index):
+                kurt_mp, kurt_ed, kurt_sp = self.compute_cusp_kurtosis(mp_data, ed_data, sp_data, i, i + 1)
+                cusp_vol_100, cusp_vol_10 = self.compute_cusp_volatility(mp_c_data, i + 1)
+                ovr_price_diff, _ = self.compute_cusp_price_difference(mp_data, start_index, i + 1)
+
+                new_data_row_to_insert = [
+                    i, mp_data[i], ed_data[i], sp_data[i], kurt_mp, kurt_ed, kurt_sp, 
+                    cusp_vol_100, cusp_vol_10, ovr_price_diff
+                ]
+
+                with open(file_directory, mode='a', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(new_data_row_to_insert)
