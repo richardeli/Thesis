@@ -61,6 +61,11 @@ class SystemBook():
         self.cusp_market_price = 0.0
         self.cusp_price_index = 0
 
+        '''TEMP'''
+        self.testing_prices = []
+        self.testing_volatility = []
+        self.volatility_per_cycle = []
+
     def init_agent_LOB_environment(self):
         self.agent_dict[self.moderator.get_agentID()] = {
                 "agent_object": self.moderator,
@@ -91,24 +96,59 @@ class SystemBook():
         random.shuffle(keys)
         shuffled_agent_dict = {key: self.agent_dict[key] for key in keys}
         self.agent_dict = shuffled_agent_dict
-
-
         return
+    
+    def start_market(self):
+        price = self.LOB.get_market_price()
+        for i in range(6):
+            if(i % 2 == 0):
+                order = {'type': 'limit',
+                        'side': 'bid',
+                        'qty': 1,
+                        'price': price,
+                        'agentID': 0,
+                        'tid': 0}
+                self.LOB.processOrder(order,False,False)
+            else:
+                order = {'type': 'limit',
+                    'side': 'ask',
+                    'qty': 1,
+                    'price': price*0.95,
+                    'agentID': 0,
+                    'tid': 0}
+                self.LOB.processOrder(order,False,False)
+                self.moderator.add_share(order['qty'])
+
+        price = self.LOB.get_market_price()
+        for i in range(6):
+            order = {'type': 'limit',
+                        'side': 'bid',
+                        'qty': 1,
+                        'price': price,
+                        'agentID': 0,
+                        'tid': 0}
+            self.LOB.processOrder(order,False,False)
+            print(self.LOB.get_trend())
 
     def trade_cycle(self):
         dilution_reversal = False
+
+        #Temp
+        temp_ave_prices_p_cycle = []
+
         for k in range(0, self.num_trade_cycles):
             print("Trade Cycle: {}".format(k))
-            if k == self.change_dilution_dir_cycle_num: #Change direction of dilution (reversal)
+            if k == self.change_dilution_dir_cycle_num: 
                 dilution_reversal = True
-
-            if ((k >= 1) and (k % self.cycle_cool_off_per_dilution) == 0): #Let first trade cycle occur with no agent dilution
+            if ((k >= 1) and (k % self.cycle_cool_off_per_dilution) == 0): 
                 self.fund_agent_dilution(dilution_reversal)
+
+            ### TEMP
+            temp_this_cycle_market_prices = []
 
             for agentID, agent_info in self.agent_dict.items():
                 if agentID == 0:
-                    continue #Skip AgentID 0 (Moderator)
-
+                    continue 
                 time = self.LOB.get_time()
                 if(self.LOB.get_market_price() != None):
 
@@ -132,11 +172,27 @@ class SystemBook():
                     self.store_market_price_per_trade(self.order_num, market_price, speculator_proportion, k)
                     self.store_spec_content_vs_ex_demand_per_trade(speculator_proportion, excess_demand, market_price_change)
                     self.order_num += 1
+
+                    ## TEMP
+                    temp_this_cycle_market_prices.append(market_price)
+
+            ## TEMP
+            average_price = sum(temp_this_cycle_market_prices) / len(temp_this_cycle_market_prices)
+            temp_ave_prices_p_cycle.append(average_price)
+
             self.store_market_price_per_cycle(market_price, k, speculator_proportion)
             self.store_spec_content_vs_ex_demand_per_cycle(speculator_proportion, excess_demand, market_price_change, k)
             self.settle_system_trades()
+
+        #TEMP
+        print(temp_ave_prices_p_cycle)
+        temp_series = pd.Series(temp_ave_prices_p_cycle)
+        temp_return = temp_series.pct_change().dropna()
+        this_cycle_volatility = temp_return.std()
+        self.volatility_per_cycle.append(this_cycle_volatility)
+
         self.cusp_market_price, self.cusp_price_index = self.bifurcation_point_finder()
-        return
+        return 
 
     def init_market_direction(self):
         '''DOWNWARDS PRESSURE'''
@@ -150,7 +206,7 @@ class SystemBook():
                             'agentID': 0,
                             'tid': 0}
                     self.LOB.processOrder(order,False,False)
-                if(i in range(130,200)):
+                if(i in range(121,200)):
                     order = {'type': 'limit',
                         'side': 'ask',
                         'qty': 1,
@@ -165,7 +221,7 @@ class SystemBook():
         '''UPWARDS PRESSURE'''
         if(self.init_upward_market_dir == True):
             for i in range(1,200):
-                if(i in range(1,80)):
+                if(i in range(1,99)):
                     order = {'type': 'limit',
                             'side': 'bid',
                             'qty': 1,
@@ -174,7 +230,7 @@ class SystemBook():
                             'tid': 0}
                     self.LOB.processOrder(order,False,False)
 
-                if(i in range(90,200)):
+                if(i in range(101,200)):
                     order = {'type': 'limit',
                         'side': 'ask',
                         'qty': 1,
@@ -185,6 +241,7 @@ class SystemBook():
                     self.moderator.add_share(order['qty'])
                 else:
                     pass
+        
         for i in range(1,100):
             price_ceiling = {'type': 'limit',
                             'side': 'ask',
@@ -655,3 +712,142 @@ class SystemBook():
                 with open(file_directory, mode='a', newline='') as file:
                     writer = csv.writer(file)
                     writer.writerow(new_data_row_to_insert)
+
+    def save_per_simulation_excel(self, num_sims, num_runs, file_name):
+        # directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\{}'.format(file_name + ".csv")
+        directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/{}'.format(file_name + ".csv")
+        mp_data = self.y_market_price_per_trade
+        ed_data = self.excess_demand_per_trade
+        sp_data = self.speculator_proportion_per_trade
+
+        if not os.path.exists(directory):
+            with open(directory, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Run Number', 'Fundamentalists Initialised', 'Speculators Initialised', 'Speculators Added/Removed Per Cycle', 
+                                 'Num Cycle', 'Cool off Per Cycle', 'Speculator Proportion at CUSP', 'Market Price', 'Excess Demand',]
+                                )
+
+        new_data_row_to_insert = [
+                    num_runs, self.num_init_fundamentalists, self.num_init_speculators, self.chg_num_agent_pcycle,
+                    self.num_trade_cycles, self.cycle_cool_off_per_dilution, 
+                    self.trade_hovertext[self.cusp_price_index][0] , mp_data[-1], self.excess_demand_per_trade[self.cusp_price_index],
+        ]
+
+        with open(directory, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(new_data_row_to_insert)
+        return
+
+    def testing_save_vol_excel(self, num_sims, num_runs, file_name):
+        # directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\{}'.format(file_name + ".csv")
+        directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/{}'.format(file_name + ".csv")
+        data = self.volatility_per_cycle
+
+        if not os.path.exists(directory):
+            with open(directory, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow([
+                'Cycle 1 Volatility', 'Cycle 2 Volatility', 'Cycle 3 Volatility',
+                'Cycle 4 Volatility', 'Cycle 5 Volatility', 'Cycle 6 Volatility',
+                'Cycle 7 Volatility', 'Cycle 8 Volatility', 'Cycle 9 Volatility',
+                'Cycle 10 Volatility',
+                'Cycle 1 Average Price', 'Cycle 2 Average Price', 'Cycle 3 Average Price',
+                'Cycle 4 Average Price', 'Cycle 5 Average Price', 'Cycle 6 Average Price',
+                'Cycle 7 Average Price', 'Cycle 8 Average Price', 'Cycle 9 Average Price',
+                'Cycle 10 Average Price',
+                'Cycle 1 Speculator Proportion', 'Cycle 2 Speculator Proportion',
+                'Cycle 3 Speculator Proportion', 'Cycle 4 Speculator Proportion',
+                'Cycle 5 Speculator Proportion', 'Cycle 6 Speculator Proportion',
+                'Cycle 7 Speculator Proportion', 'Cycle 8 Speculator Proportion',
+                'Cycle 9 Speculator Proportion', 'Cycle 10 Speculator Proportion'
+            ])
+
+        new_data_row_to_insert = [
+        *self.testing_volatility[:10],  # Volatility values for 10 cycles
+        *self.testing_prices[:10],      # Average prices for 10 cycles
+        *self.speculator_proportion_per_cycle[:10]  # Speculator proportion for 10 cycles
+        ]
+        with open(directory, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(new_data_row_to_insert)
+        return
+    
+    def testing_trade_cycle(self):
+        dilution_reversal = False
+
+        # TEMP: Store average and intra-cycle prices
+        temp_ave_prices_p_cycle = []
+        intra_cycle_volatility = []  # Store volatility for each cycle
+
+        for k in range(self.num_trade_cycles):
+            print(f"Trade Cycle: {k}")
+
+            # Check for dilution reversal or cool-off events
+            if k == self.change_dilution_dir_cycle_num:
+                dilution_reversal = True
+            if k >= 1 and k % self.cycle_cool_off_per_dilution == 0:
+                self.fund_agent_dilution(dilution_reversal)
+
+            # TEMP: Store all market prices within this cycle
+            temp_this_cycle_market_prices = []
+
+            # Iterate over agents and execute trades
+            for agentID, agent_info in self.agent_dict.items():
+                if agentID == 0:  # Skip market maker
+                    continue
+
+                time = self.LOB.get_time()
+                if self.LOB.get_market_price() is not None:
+                    market_price = self.LOB.get_market_price() / 1000
+                    agent = agent_info["agent_object"]
+                    order = agent.trade(self.LOB.get_trend(), market_price, time)
+
+                    if isinstance(order, dict):
+                        self.LOB.processOrder(order, False, False)
+
+                    # Track speculator proportion, demand, and market price change
+                    speculator_proportion = self.get_speculator_proportion()
+                    excess_demand = self.get_excess_demand()
+                    market_price_change = self.calculate_market_price_post_trade(
+                        market_price, self.LOB.get_market_price() / 1000
+                    )
+
+                    # Store price data for analysis
+                    self.store_market_price_per_trade(self.order_num, market_price, speculator_proportion, k)
+                    self.store_spec_content_vs_ex_demand_per_trade(speculator_proportion, excess_demand, market_price_change)
+                    self.order_num += 1
+
+                    # TEMP: Collect prices within this cycle
+                    temp_this_cycle_market_prices.append(market_price)
+
+            # TEMP: Calculate and store average price for this cycle
+            # self.speculator_proportion_per_cycle.append(self.get_speculator_proportion())
+            average_price = sum(temp_this_cycle_market_prices) / len(temp_this_cycle_market_prices)
+            temp_ave_prices_p_cycle.append(average_price)
+
+            # TEMP: Calculate intra-cycle volatility (standard deviation of prices)
+            cycle_volatility = pd.Series(temp_this_cycle_market_prices).std()
+            intra_cycle_volatility.append(cycle_volatility)
+
+            # Store other cycle data
+            self.store_market_price_per_cycle(market_price, k, speculator_proportion)
+            self.store_spec_content_vs_ex_demand_per_cycle(speculator_proportion, excess_demand, market_price_change, k)
+            self.settle_system_trades()
+
+        # TEMP: Calculate overall volatility based on average prices per cycle
+        # print("Average Prices Per Cycle:", temp_ave_prices_p_cycle)
+        temp_series = pd.Series(temp_ave_prices_p_cycle)
+        temp_return = temp_series.pct_change().dropna()
+        overall_volatility = temp_return.std()
+        self.volatility_per_cycle.append(overall_volatility)
+
+        # print("Intra-Cycle Volatility:", intra_cycle_volatility)
+        # print("Overall Volatility (Avg Prices):", overall_volatility)
+        self.testing_prices = temp_ave_prices_p_cycle
+        self.testing_volatility = intra_cycle_volatility
+
+        self.cusp_market_price, self.cusp_price_index = self.bifurcation_point_finder()
+        return
+
+    def get_vol(self):
+        return self.testing_prices, self.testing_volatility
