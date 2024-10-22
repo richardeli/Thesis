@@ -1,3 +1,0 @@
-Run Number,Catastrophe Point Found?,Fundamentalists Initialised,Speculators Initialised,Speculators Added/Removed Per Cycle,Num Cycle,Cool off Per Cycle,Speculator Proportion at CUSP,Market Price at CUSP,Excess Demand,Kurtosis MP,Kurtosis ED,Kurtosis SP,MP Volatility Last 100 Trades,MP Volatility Last 10 Trades,Overall Sim Volatility,Pre-CUSP Market Price Difference,Last 100 Pre-CUSP Market Prices Difference,Total Trades,Catastrophe Point Index
-576,True,900,1600,1,45,1,65.16%,58.8,-399,-0.69174,-0.67266,-1.19889,11.784,0.524,5.939,120.05,27.0,112500,73989
-577,True,900,1600,1,45,1,65.0%,82.35,-687,-0.05038,-0.89013,-1.20217,0.596,0.957,6.199,109.1,12.95,112500,64797
