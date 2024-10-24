@@ -612,7 +612,7 @@ class SystemBook():
             
     def save_last_1000_trades_excel(self, num_sims, num_runs):
         file_name = "Run {}".format(num_runs)
-        file_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Last_1000\{}'.format(file_name + ".csv")
+        file_directory = r'C:\Users\Ricky\Documents\GitHub\Thesis\Data Generated\Last_3000\{}'.format(file_name + ".csv")
         # file_directory = '/Users/richardeli/Downloads/USYD/Thesis/Data Generated/Window/{}/{}'.format(folder_name, file_name + ".csv")
 
         mp_data = self.y_market_price_per_trade
@@ -621,7 +621,7 @@ class SystemBook():
         mp_c_data = self.market_price_change_per_trade
 
         cusp_index = self.cusp_price_index
-        start_index = max(0, cusp_index - 1000)  
+        start_index = max(0, cusp_index - 3000)  
         end_index = cusp_index
 
         cusp_found = False
